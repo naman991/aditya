@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enigma</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Added cartoonish font -->
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #000000;
+            --text-primary: #ffffff;
+            --accent-color: #ffffff;
+            --transition-speed: 0.7s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Orbitron', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            perspective: 1000px;
+            cursor: none;
+            margin: 0;
+            user-select: none;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 90%;
+            position: relative;
+            height: 200px;
+        }
+
+        .text-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(0.8rem, 3vw, 1.2rem);
+            opacity: 0;
+            letter-spacing: 0.05em;
+            line-height: 1.5;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            transition: all var(--transition-speed) cubic-bezier(0.25, 0.1, 0.25, 1);
+            text-align: center;
+            white-space: nowrap;
+            max-width: 90vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .text-line.active {
+            opacity: 1;
+            z-index: 10;
+        }
+
+        .text-line.hidden {
+            opacity: 0;
+            z-index: 1;
+        }
+
+        .fade-in {
+            opacity: 1;
+        }
+
+        .hidden-line {
+            position: fixed;
+            bottom: 15px;
+            right: 15px;
+            font-size: 0.65rem;
+            opacity: 0;
+            letter-spacing: 0.05em;
+            transition: opacity 0.3s ease;
+            text-align: right;
+            max-width: 170px;
+            overflow: hidden;
+            z-index: 5;
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
+            display: none;
+            /* Initially hidden */
+            cursor: pointer;
+            /* Add cursor pointer for clickable element */
+            padding: 10px;
+            /* Larger clickable area */
+        }
+
+        .clue-button {
+            position: fixed;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            cursor: none;
+            transition: all 0.1s ease;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            filter: blur(2px);
+            z-index: 100;
+        }
+
+        .amoeba-shape {
+            width: 80px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50% / 60%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            animation: amoeba-morph 3s infinite alternate;
+        }
+
+        @keyframes amoeba-morph {
+            0% {
+                border-radius: 50% / 60%;
+                transform: scale(1);
+            }
+
+            50% {
+                border-radius: 40% / 50%;
+                transform: scale(1.05);
+            }
+
+            100% {
+                border-radius: 60% / 70%;
+                transform: scale(0.95);
+            }
+        }
+
+        .cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--accent-color);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            mix-blend-mode: difference;
+            z-index: 9999;
+            transition: transform 0.1s ease;
+        }
+
+        /* Loading Bar Styles */
+        .loading-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 120px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        .loading-label {
+            margin-bottom: 15px;
+            font-size: 1rem;
+            letter-spacing: 0.1em;
+            color: var(--text-primary);
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-comment {
+            font-size: 0.9rem;
+            letter-spacing: 0.05em;
+            color: var(--text-primary);
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            margin-top: 15px;
+            text-align: center;
+            font-style: italic;
+            max-width: 280px;
+        }
+
+        .loading-bar-outer {
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .loading-bar-inner {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 0.3) 100%);
+            background-size: 200% 100%;
+            animation: gradient-shift 2s linear infinite;
+            transition: width 0.5s ease-out;
+        }
+
+        .loading-percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+            font-weight: bold;
+        }
+
+        .result-message {
+            margin-top: 15px;
+            font-size: 1rem;
+            letter-spacing: 0.1em;
+            color: var(--text-primary);
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        @keyframes gradient-shift {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            100% {
+                background-position: 200% 50%;
+            }
+        }
+
+        /* Dramatic flash effect */
+        .flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            opacity: 0;
+            z-index: 150;
+            pointer-events: none;
+        }
+
+        /* Slight screen shake animation */
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            10%,
+            30%,
+            50%,
+            70%,
+            90% {
+                transform: translateX(-5px);
+            }
+
+            20%,
+            40%,
+            60%,
+            80% {
+                transform: translateX(5px);
+            }
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+        }
+
+        /* GIF container styles */
+        .gif-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 300;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-primary);
+        }
+
+        .gif-player {
+            width: 80%;
+            max-width: 800px;
+            height: auto;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.3);
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        /* Invisible button styles */
+        .invisible-button {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            z-index: 400;
+            cursor: none;
+            /* Hide cursor on button */
+            display: none;
+        }
+
+        /* NEW: Cartoonish text styles */
+        .cartoon-text {
+            font-family: 'Bangers', cursive;
+            font-size: 2rem;
+            color: #FFD700;
+            text-shadow: 2px 2px 0 #FF4500, 
+                         4px 4px 0 #FF0000;
+            letter-spacing: 2px;
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 1s ease;
+            z-index: 450;
+            text-align: center;
+            width: 90%;
+        }
+
+        /* NEW: Input form styles */
+        .input-container {
+            position: absolute;
+            bottom: 20%;
+            left: 50%;
+            transform: translate(-50%, 0);
+            width: 300px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1s ease;
+            z-index: 450;
+        }
+
+        .input-question {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            font-size: 1rem;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+
+        .input-field {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: var(--text-primary);
+            padding: 10px;
+            width: 100%;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            text-align: center;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .input-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: var(--text-primary);
+            padding: 8px 20px;
+            font-family: 'Orbitron', sans-serif;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .input-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="cursor"></div>
+    <div class="container">
+        <p class="text-line" id="line2">The things you seek? They were never hidden.</p>
+        <p class="text-line" id="line3">They've been right in front of you this whole time.</p>
+        <p class="text-line" id="line4">Most people don't see what's staring them in the face.</p>
+    </div>
+
+    <p class="hidden-line" id="hiddenLine">Not all invisibility is magic—some is mere neglect.</p>
+
+    <button id="clueButton" class="clue-button">
+        <div class="amoeba-shape">Help</div>
+    </button>
+
+    <div class="loading-container" id="loadingContainer">
+        <p class="loading-label" id="loadingLabel">Deciphering your intelligence level...</p>
+        <div class="loading-bar-outer">
+            <div class="loading-bar-inner" id="loadingBarInner"></div>
+            <div class="loading-percentage" id="loadingPercentage">0%</div>
+        </div>
+        <p class="result-message" id="resultMessage"></p>
+        <p class="loading-comment" id="loadingComment"></p>
+    </div>
+
+    <div class="gif-container" id="gifContainer">
+        <img id="gifPlayer" class="gif-player" src="G.gif" alt="Animation">
+        <!-- NEW: Added cartoon text -->
+        <p id="cartoonText" class="cartoon-text">Ah, yes. A video of you hiding. How poetic. Almost as if something else is hiding too... But hey, no rush. Take your time. Stare at this masterpiece. Soak it in.</p>
+        <!-- NEW: Added input form -->
+        <div id="inputContainer" class="input-container">
+            <p class="input-question">Name the hottest guy you know on earth:</p>
+            <input type="text" id="nameInput" class="input-field" autocomplete="off">
+            <button id="submitButton" class="input-button">Submit</button>
+        </div>
+    </div>
+
+    <button id="invisibleButton" class="invisible-button"></button>
+
+    <div class="flash" id="flashEffect"></div>
+
+    <audio id="backgroundAudio" loop>
+        <source src="audio.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        window.onload = function () {
+            const lines = document.querySelectorAll('.text-line');
+            const hiddenLine = document.getElementById('hiddenLine');
+            const clueButton = document.getElementById('clueButton');
+            const cursor = document.querySelector('.cursor');
+            const loadingContainer = document.getElementById('loadingContainer');
+            const loadingLabel = document.getElementById('loadingLabel');
+            const loadingComment = document.getElementById('loadingComment');
+            const loadingBarInner = document.getElementById('loadingBarInner');
+            const loadingPercentage = document.getElementById('loadingPercentage');
+            const resultMessage = document.getElementById('resultMessage');
+            const flashEffect = document.getElementById('flashEffect');
+            const gifContainer = document.getElementById('gifContainer');
+            const gifPlayer = document.getElementById('gifPlayer');
+            const invisibleButton = document.getElementById('invisibleButton');
+            const backgroundAudio = document.getElementById('backgroundAudio');
+            // NEW: Get cartoon text and input elements
+            const cartoonText = document.getElementById('cartoonText');
+            const inputContainer = document.getElementById('inputContainer');
+            const nameInput = document.getElementById('nameInput');
+            const submitButton = document.getElementById('submitButton');
+            
+            let currentLine = 0;
+            let clickCount = 0;
+            let currentX = 0, currentY = 0;
+            let isButtonVisible = false;
+            let currentCommentIndex = 0;
+            let audioStarted = false;
+
+            // Loading comments with varying tones
+            const loadingComments = [
+                "Loading...",
+                "Oops, spilled coffee. Rebooting.",
+                "Patience is a virtue.",
+                "But let's be real, you're clicking like a maniac.",
+                "You think clicking more will fix this? Adorable.",
+                "Ever heard of the phrase 'right in front of you'?",
+                "You should see your face right now.",
+                "Almost there...",
+                "Just kidding, not even close.",
+                "This is actually quite entertaining.",
+                "Preparing the ultimate revelation.",
+                "Still processing your previous clicks.",
+                "Final preparations underway."
+            ];
+
+            // Custom cursor tracking
+            document.addEventListener('mousemove', (e) => {
+                cursor.style.left = `${e.clientX}px`;
+                cursor.style.top = `${e.clientY}px`;
+                currentX = e.clientX;
+                currentY = e.clientY;
+
+                // Only check for hidden line hover when the button is visible
+                if (isButtonVisible) {
+                    // Check if cursor is near the hidden line area
+                    const hiddenLineRect = hiddenLine.getBoundingClientRect();
+                    const proximity = 50; // Detection radius in pixels
+
+                    if (Math.abs(e.clientX - (hiddenLineRect.left + hiddenLineRect.width / 2)) < hiddenLineRect.width / 2 + proximity &&
+                        Math.abs(e.clientY - (hiddenLineRect.top + hiddenLineRect.height / 2)) < hiddenLineRect.height / 2 + proximity) {
+                        hiddenLine.style.opacity = 0.8;
+                        // Change cursor appearance when hovering over the hidden line
+                        cursor.style.transform = 'translate(-50%, -50%) scale(1.5)';
+                        cursor.style.borderColor = '#ff6b6b';
+                    } else {
+                        hiddenLine.style.opacity = 0;
+                        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+                        cursor.style.borderColor = 'var(--accent-color)';
+                    }
+                }
+            });
+
+            // Function to play audio
+            function playAudio() {
+                if (!audioStarted) {
+                    backgroundAudio.play().then(() => {
+                        audioStarted = true;
+                    }).catch(error => {
+                        console.log("Audio playback prevented by browser: ", error);
+                    });
+                }
+            }
+
+            // Set up invisible button click handler
+            invisibleButton.addEventListener('click', function() {
+                playAudio();
+                // NEW: Show cartoon text and input after audio starts
+                setTimeout(() => {
+                    cartoonText.style.opacity = 1;
+                    
+                    // Show input container after another delay
+                    setTimeout(() => {
+                        inputContainer.style.opacity = 1;
+                        nameInput.focus();
+                    }, 1000);
+                }, 1000);
+            });
+
+            // NEW: Handle form submission
+            submitButton.addEventListener('click', checkAnswer);
+            nameInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    checkAnswer();
+                }
+            });
+
+            // NEW: Function to check if the answer is correct
+            function checkAnswer() {
+                const answer = nameInput.value.trim();
+                if (answer.toLowerCase() === 'aditya') {
+                    // Redirect to another webpage
+                    window.location.href = "secondary.html";
+                } else {
+                    // Show error (shake the input)
+                    nameInput.style.borderColor = '#ff0000';
+                    nameInput.classList.add('shake');
+                    setTimeout(() => {
+                        nameInput.classList.remove('shake');
+                        setTimeout(() => {
+                            nameInput.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                        }, 500);
+                    }, 500);
+                }
+            }
+
+            // Function to show loading comments with fade in/out effect
+            function showNextComment(commentIndex, callback) {
+                if (commentIndex >= loadingComments.length) {
+                    if (callback) callback();
+                    return;
+                }
+
+                // Fade out current comment
+                loadingComment.style.opacity = 0;
+
+                // After fade out, update text and fade in
+    setTimeout(() => {
+        loadingComment.textContent = loadingComments[commentIndex];
+        loadingComment.style.opacity = 1;
+
+        // Schedule next comment after this one has been displayed
+        if (commentIndex < loadingComments.length - 1) {
+            setTimeout(() => {
+                showNextComment(commentIndex + 1, callback);
+            }, 3000); // Keep each comment visible for 3 seconds
+        } else if (callback) {
+            // For the last comment, wait a bit longer before calling callback
+            setTimeout(() => {
+                callback();
+            }, 3000);
+        }
+    }, 800); // Time for fade out
+}
+
+            function showNextLine() {
+                clickCount++;
+
+                if (currentLine < lines.length) {
+                    // Hide previous line
+                    if (currentLine > 0) {
+                        lines[currentLine - 1].classList.remove('active');
+                        lines[currentLine - 1].classList.add('hidden');
+                    }
+
+                    // Show current line
+                    lines[currentLine].classList.remove('hidden');
+                    lines[currentLine].classList.add('active');
+
+                    currentLine++;
+                }
+
+                // Show help button immediately after 4 clicks
+                if (clickCount === 4) {
+                    // Clear all text lines
+                    lines.forEach(line => {
+                        line.classList.remove('active');
+                        line.classList.add('hidden');
+                    });
+
+                    // Show the button immediately
+                    showClueButton();
+                }
+            }
+
+            function showClueButton() {
+                // Set initial position to middle of screen
+                clueButton.style.left = `${window.innerWidth / 2 - 40}px`;
+                clueButton.style.top = `${window.innerHeight / 2 - 25}px`;
+
+                // Show button
+                clueButton.style.visibility = 'visible';
+                clueButton.style.opacity = 1;
+                clueButton.style.filter = 'blur(0)';
+
+                // Make hidden line element visible but with 0 opacity
+                hiddenLine.style.display = 'block';
+                hiddenLine.style.opacity = 0;
+                hiddenLine.style.pointerEvents = 'auto'; // Enable click events
+
+                // Set flag that button is visible
+                isButtonVisible = true;
+
+                // Start repellent behavior
+                requestAnimationFrame(updateButtonPosition);
+            }
+
+            function updateButtonPosition() {
+                if (!isButtonVisible) return; // Stop the animation if button is hidden
+
+                const buttonRect = clueButton.getBoundingClientRect();
+                const buttonCenterX = buttonRect.left + buttonRect.width / 2;
+                const buttonCenterY = buttonRect.top + buttonRect.height / 2;
+
+                // Calculate vector from cursor to button
+                const vecX = buttonCenterX - currentX;
+                const vecY = buttonCenterY - currentY;
+
+                // Calculate distance
+                const distance = Math.sqrt(vecX * vecX + vecY * vecY);
+
+                // Define repulsion radius and strength
+                const repulsionRadius = 200;
+                const maxRepulsionStrength = 40;
+
+                if (distance < repulsionRadius) {
+                    // Calculate repulsion strength (stronger when closer)
+                    const repulsionStrength = maxRepulsionStrength * (1 - distance / repulsionRadius);
+
+                    // Calculate normalized direction vector
+                    const dirX = vecX / distance;
+                    const dirY = vecY / distance;
+
+                    // Calculate new position with a more immediate jump
+                    let newX = buttonCenterX + dirX * repulsionStrength;
+                    let newY = buttonCenterY + dirY * repulsionStrength;
+
+                    // Define a buffer from the edges
+                    const edgeBuffer = 50;
+
+                    // Boundary checks with buffer to prevent sticking at corners
+                    newX = Math.max(buttonRect.width / 2 + edgeBuffer,
+                        Math.min(newX, window.innerWidth - buttonRect.width / 2 - edgeBuffer));
+                    newY = Math.max(buttonRect.height / 2 + edgeBuffer,
+                        Math.min(newY, window.innerHeight - buttonRect.height / 2 - edgeBuffer));
+
+                    // Update position with reduced transition time
+                    clueButton.style.transition = 'left 0.05s, top 0.05s'; // Faster transition
+                    clueButton.style.left = `${newX - buttonRect.width / 2}px`;
+                    clueButton.style.top = `${newY - buttonRect.height / 2}px`;
+                }
+
+                requestAnimationFrame(updateButtonPosition);
+            }
+
+            hiddenLine.addEventListener('click', function () {
+                if (isButtonVisible) {
+                    // Hide the help button
+                    clueButton.style.opacity = 0;
+                    clueButton.style.visibility = 'hidden';
+                    isButtonVisible = false;
+
+                    // Hide the hidden line
+                    hiddenLine.style.opacity = 0;
+                    hiddenLine.style.pointerEvents = 'none';
+
+                    // Quick flash effect
+                    flashEffect.style.opacity = 0.7;
+                    setTimeout(() => {
+                        flashEffect.style.transition = 'opacity 0.5s ease-out';
+                        flashEffect.style.opacity = 0;
+                    }, 100);
+
+                    // Add slight screen shake
+                    document.body.classList.add('shake');
+                    setTimeout(() => {
+                        document.body.classList.remove('shake');
+                    }, 500);
+
+                    // Show loading bar
+                    loadingContainer.style.display = 'flex';
+                    loadingLabel.textContent = "Deciphering your intelligence level...";
+                    loadingLabel.style.opacity = 1;
+
+                     // First phase of loading - up to exactly 37%
+        let progress = 0;
+        const firstPhaseInterval = setInterval(() => {
+            progress += 0.5;
+            if (progress >= 37) {
+                progress = 37; // Exactly 37%
+                clearInterval(firstPhaseInterval);
+
+                // Update loading bar display to exactly 37%
+                loadingBarInner.style.width = '37%';
+                loadingPercentage.textContent = '37%';
+
+                // Show first comment at 37%
+                loadingComment.textContent = "Oh... oh no!";
+                loadingComment.style.opacity = 1;
+
+                // After a delay, remove the label but keep the loading bar visible
+                setTimeout(() => {
+                    // Remove the label
+                    loadingLabel.style.opacity = 0;
+                    
+                    setTimeout(() => {
+                        // Calculate how much progress to add per comment
+                        const progressPerComment = (100 - 37) / loadingComments.length;
+                        let currentProgress = 37;
+                        
+                        // Show comments sequentially with progress updates
+                        showNextComment(0, function onComplete() {
+                            // Final flash effect on completion
+                            flashEffect.style.transition = 'opacity 0.1s ease-in';
+                            flashEffect.style.opacity = 1;
+
+                            setTimeout(() => {
+                                // Fade out flash
+                                flashEffect.style.transition = 'opacity 0.5s ease-out';
+                                flashEffect.style.opacity = 0;
+
+                                // Hide loading container
+                                loadingContainer.style.opacity = 0;
+
+                                setTimeout(() => {
+                                    // Show GIF container
+                                    loadingContainer.style.display = 'none';
+                                    gifContainer.style.display = 'flex';
+
+                                    setTimeout(() => {
+                                        // Fade in GIF
+                                        gifPlayer.style.opacity = 1;
+                                        
+                                        // Show invisible button and allow audio playback
+                                        invisibleButton.style.display = 'block';
+                                    }, 300);
+                                }, 500);
+                            }, 300);
+                        });
+                        
+                        // Update progress bar as comments show
+                        let commentCounter = 0;
+                        const progressInterval = setInterval(() => {
+                            if (commentCounter >= loadingComments.length) {
+                                clearInterval(progressInterval);
+                                return;
+                            }
+                            
+                            // Increment progress gradually for each comment period
+                            const incrementsPerComment = 10; // How many visual updates per comment
+                            for (let i = 0; i < incrementsPerComment; i++) {
+                                setTimeout(() => {
+                                    currentProgress += progressPerComment / incrementsPerComment;
+                                    if (currentProgress > 100) currentProgress = 100;
+                                    
+                                    // Update the progress visibly
+                                    loadingBarInner.style.width = `${currentProgress}%`;
+                                    loadingPercentage.textContent = `${Math.round(currentProgress)}%`;
+                                }, (i * 3000) / incrementsPerComment);
+                            }
+                            
+                            commentCounter++;
+                        }, 3800); // Slightly longer than comment display time to account for transitions
+                        
+                    }, 1000);
+                }, 2000); // Wait 2 seconds before hiding label
+            }
+            loadingBarInner.style.width = `${progress}%`;
+            loadingPercentage.textContent = `${Math.round(progress)}%`;
+        }, 50);
+    }
+});
+
+            document.body.addEventListener('click', showNextLine);
+        };
+    </script>
+</body>
+
+</html>

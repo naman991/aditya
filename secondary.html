@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hidden Clue Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+        }
+        
+        #game-container {
+            position: relative;
+            height: 500px;
+            margin-bottom: 20px;
+            border: none; /* Removed the border */
+            overflow: hidden;
+            background-color: transparent;
+        }
+        
+        .image-container {
+            position: absolute;
+            width: 150px;
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .image {
+            width: 80px;
+            height: 60px;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            transition: transform 0.2s;
+            object-fit: cover; /* This helps with image sizing */
+        }
+        
+        .image:hover {
+            transform: scale(1.1);
+        }
+        
+        .clue-text {
+            font-size: 12px;
+            font-style: italic;
+            padding: 5px;
+            display: none;
+            text-align: center;
+            background-color: #fff;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+            width: 100%;
+        }
+        /* New styles for the highlight reveal */
+        #highlight-reveal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+            z-index: 1000;
+            color: white;
+            font-size: 5rem;
+            font-weight: bold;
+            text-align: center;
+            /* Cryptic font styles */
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+        }
+        
+        /* Style for the text that needs to be highlighted */
+        .highlight-trigger {
+            cursor: text;
+            position: relative;
+        }
+        
+        /* Content container for final reveal */
+        .reveal-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 80%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* Gmail logo image styles */
+        .gmail-logo {
+            margin-top: 20px;
+            width: 150px;
+            height: auto;
+            max-height: 120px;
+            object-fit: contain;
+        }
+        
+        .ctrl-text {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <div id="highlight-reveal">
+        <div class="reveal-content">
+            <div class="ctrl-text">CTRL + A</div>
+            <img src="gmail.jpg" alt="Gmail Logo" class="gmail-logo">
+        </div>
+    </div>
+    
+    <script>
+        // List of image URLs (your local images)
+        const imageUrls = [
+            'smart.jpg',
+            'girlcuterat.jpg',  
+            'NOTED.jpg',
+            'smilingGauri.jpg',
+            'girlcuterat.jpg',
+            'stare.jpg'
+        ];
+        
+        // List of clues
+        const clues = [
+            "\"Dots and dashes, whispers and flashes… Wonder where you've seen that before?\"",
+            "\"White on white. Hidden in sight. But you see everything, right?\"",
+            "\"If only there were a way to uncover hidden things… like a magician pulling a rabbit from a hat. Or maybe, just maybe, using that mouse of yours a little differently?\"",
+            "\"I'd help, but watching this struggle is WAY too entertaining.\"",
+            "\"Absolutely do NOT highlight this page. That would be cheating. And we do NOT support such behavior here. Nope. Never.\"",
+            "\"You're SO CLOSE! Just one tiny step left. A small movement. Maybe of your mouse. Maybe over this <span class='highlight-trigger'>text</span>. But hey, no pressure.\""
+        ];
+        
+        const gameContainer = document.getElementById('game-container');
+        const highlightReveal = document.getElementById('highlight-reveal');
+        
+        let clueIndex = 0;
+        let positions = [];
+        
+        // Check if positions overlap
+        function isOverlap(newPos, existingPositions) {
+            for (const pos of existingPositions) {
+                // Check if rectangles overlap
+                if (!(newPos.right < pos.left || 
+                    newPos.left > pos.right || 
+                    newPos.bottom < pos.top || 
+                    newPos.top > pos.bottom)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Generate random position for image container
+        function getRandomPosition(width, height, isLastClue = false) {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+            
+            // Add padding to ensure elements stay fully within boundaries
+            const paddingX = 10;
+            const paddingY = 10;
+            
+            // For the last clue, ensure it's in the visible area of the screen
+            if (isLastClue) {
+                // Force the last clue to be positioned in the center area
+                const left = containerWidth / 2 - width / 2;
+                const top = containerHeight / 2 - height / 2;
+                
+                const newPos = {
+                    left: left,
+                    top: top,
+                    right: left + width,
+                    bottom: top + height
+                };
+                
+                positions.push(newPos);
+                return { left, top };
+            }
+            
+            // Try up to 100 times to find a non-overlapping position
+            for (let i = 0; i < 100; i++) {
+                const left = Math.random() * (containerWidth - width - paddingX * 2) + paddingX;
+                const top = Math.random() * (containerHeight - height - paddingY * 2) + paddingY;
+                
+                const newPos = {
+                    left: left,
+                    top: top,
+                    right: left + width,
+                    bottom: top + height
+                };
+                
+                if (!isOverlap(newPos, positions)) {
+                    positions.push(newPos);
+                    return { left, top };
+                }
+            }
+            
+            // If all attempts fail, use grid placement as fallback
+            return useGridFallback(width, height);
+        }
+        
+        // Grid-based fallback placement when random placement fails
+        function useGridFallback(width, height) {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+            
+            // Calculate how many items can fit in each row and column
+            const itemsPerRow = Math.floor(containerWidth / (width + 10));
+            const itemsPerColumn = Math.floor(containerHeight / (height + 10));
+            
+            // Calculate total possible positions in grid
+            const totalPositions = itemsPerRow * itemsPerColumn;
+            
+            // If we've used all positions, stack at the edge with increasing y offset
+            if (positions.length >= totalPositions) {
+                const left = 10;
+                const top = 10 + (positions.length - totalPositions + 1) * 30;
+                
+                const newPos = {
+                    left: left,
+                    top: top,
+                    right: left + width,
+                    bottom: top + height
+                };
+                
+                positions.push(newPos);
+                return { left, top };
+            }
+            
+            // Find next available grid position
+            for (let row = 0; row < itemsPerColumn; row++) {
+                for (let col = 0; col < itemsPerRow; col++) {
+                    const left = col * (width + 10) + 10;
+                    const top = row * (height + 10) + 10;
+                    
+                    const newPos = {
+                        left: left,
+                        top: top,
+                        right: left + width,
+                        bottom: top + height
+                    };
+                    
+                    if (!isOverlap(newPos, positions)) {
+                        positions.push(newPos);
+                        return { left, top };
+                    }
+                }
+            }
+            
+            // Last resort: just place at 0,0 with an offset based on existing elements
+            return { left: 10, top: 10 + positions.length * 10 };
+        }
+        
+        // Place a new image in a random position
+        function placeNextImage() {
+            if (clueIndex >= clues.length) {
+                return;
+            }
+            
+            const containerWidth = 150;
+            const containerHeight = 120; // Image + text space
+            
+            // Check if this is the last clue (7th clue)
+            const isLastClue = clueIndex === clues.length - 1;
+            const position = getRandomPosition(containerWidth, containerHeight, isLastClue);
+            
+            const imageContainer = document.createElement('div');
+            imageContainer.classList.add('image-container');
+            imageContainer.style.left = `${position.left}px`;
+            imageContainer.style.top = `${position.top}px`;
+            
+            const imgElement = document.createElement('img');
+            imgElement.src = imageUrls[clueIndex];
+            imgElement.classList.add('image');
+            imgElement.alt = ""; // Removed "Click me" alt text
+            imgElement.dataset.clicked = "false"; // Add attribute to track if already clicked
+            
+            const clueElement = document.createElement('div');
+            clueElement.classList.add('clue-text');
+            clueElement.innerHTML = clues[clueIndex]; // Using innerHTML to support the span in the last clue
+            
+            imageContainer.appendChild(imgElement);
+            imageContainer.appendChild(clueElement);
+            
+            imgElement.addEventListener('click', function() {
+                // Only process the click if the image hasn't been clicked before
+                if (this.dataset.clicked === "false") {
+                    // Mark as clicked
+                    this.dataset.clicked = "true";
+                    
+                    // Show the clue
+                    clueElement.style.display = 'block';
+                    
+                    // Increment the clue index and place the next image after delay
+                    const currentIndex = clueIndex;
+                    clueIndex++;
+                    
+                    // If this is the last clue, add the highlight event listener
+                    if (currentIndex === clues.length - 1) {
+                        setTimeout(function() {
+                            const highlightTrigger = document.querySelector('.highlight-trigger');
+                            if (highlightTrigger) {
+                                highlightTrigger.addEventListener('mouseup', checkHighlight);
+                            }
+                        }, 500);
+                    }
+                    
+                    setTimeout(placeNextImage, 1000);
+                }
+            });
+            
+            gameContainer.appendChild(imageContainer);
+            
+            // Add error handling for image loading
+            imgElement.onerror = function() {
+                console.error(`Failed to load image: ${imageUrls[clueIndex]}`);
+                this.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2280%22%20height%3D%2260%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%2280%22%20height%3D%2260%22%20fill%3D%22%23ddd%22%2F%3E%3Ctext%20x%3D%2240%22%20y%3D%2230%22%20font-family%3D%22Arial%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20dominant-baseline%3D%22middle%22%20fill%3D%22%23999%22%3EImage%20%23'+ (clueIndex+1) +'%3C%2Ftext%3E%3C%2Fsvg%3E';
+            };
+        }
+        
+        // Function to check if the word has been highlighted
+        function checkHighlight() {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+            
+            if (selectedText === 'text') {
+                highlightReveal.style.display = 'block';
+                
+                // Hide everything else
+                gameContainer.style.display = 'none';
+                document.querySelector('.morse').style.display = 'none';
+                document.querySelector('.hidden-text').style.display = 'none';
+                
+                // Preload the Gmail logo image to ensure it displays properly
+                const gmailLogo = document.querySelector('.gmail-logo');
+                if (gmailLogo) {
+                    gmailLogo.onload = function() {
+                        console.log("Gmail logo loaded successfully");
+                    };
+                    
+                    gmailLogo.onerror = function() {
+                        console.error("Failed to load Gmail logo");
+                        this.src = 'gmail.jpg';
+                    };
+                }
+            }
+        }
+        
+        // Handle window resize to ensure all elements stay within bounds
+        window.addEventListener('resize', function() {
+            // Only reposition if we're in the middle of the game
+            if (clueIndex > 0 && clueIndex < clues.length) {
+                // Get all image containers
+                const containers = document.querySelectorAll('.image-container');
+                
+                containers.forEach((container, index) => {
+                    // Get current position
+                    const left = parseInt(container.style.left);
+                    const top = parseInt(container.style.top);
+                    
+                    // Check if out of bounds after resize
+                    const containerWidth = gameContainer.clientWidth;
+                    const containerHeight = gameContainer.clientHeight;
+                    
+                    // Special handling for the last clue (7th clue) to keep it centered
+                    if (index === containers.length - 1 && index === clues.length - 1) {
+                        container.style.left = (containerWidth / 2 - 75) + 'px';
+                        container.style.top = (containerHeight / 2 - 60) + 'px';
+                    } 
+                    // Adjust other clues if needed
+                    else {
+                        if (left + 150 > containerWidth) {
+                            container.style.left = (containerWidth - 160) + 'px';
+                        }
+                        
+                        if (top + 120 > containerHeight) {
+                            container.style.top = (containerHeight - 130) + 'px';
+                        }
+                    }
+                });
+            }
+        });
+        
+        // Start the game
+        placeNextImage();
+    </script>
+</body>
+</html>
